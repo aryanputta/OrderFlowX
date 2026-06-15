@@ -1,0 +1,25 @@
+{
+  "config": {
+    "intents": 1000,
+    "redeliveryProb": 0.2,
+    "seed": 1337
+  },
+  "deliveries": {
+    "withoutIdempotency": 1249,
+    "withIdempotency": 1249
+  },
+  "duplicateSideEffectRate": {
+    "withoutIdempotency": "19.9%",
+    "withIdempotency": "0.0%"
+  },
+  "oversellRate": {
+    "withoutIdempotency": "0.0%",
+    "withIdempotency": "0.0%"
+  },
+  "failureRecoveryRate": "100.0%",
+  "checkoutLatencyMs": {
+    "p50": 0.029,
+    "p95": 0.051,
+    "p99": 0.095
+  }
+}

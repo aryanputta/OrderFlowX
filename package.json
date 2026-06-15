@@ -7,7 +7,9 @@
     "build": "tsc -p tsconfig.json",
     "lint": "tsc -p tsconfig.json --noEmit",
     "test": "jest --runInBand",
-    "benchmark": "node scripts/run-benchmark.js"
+    "benchmark": "npm run build && node dist/src/bench/benchmark.js",
+    "start": "node dist/src/index.js",
+    "dev": "node dist/src/index.js"
   },
   "devDependencies": {
     "@types/jest": "^29.5.12",
@@ -18,5 +20,6 @@
   },
   "dependencies": {
     "zod": "^3.23.8"
-  }
+  },
+  "main": "dist/src/index.js"
 }

@@ -1,44 +1,85 @@
 # OrderFlowX
 
-Distributed order reservation system that models cart checkout, inventory holds, payment authorization, shipment reservation, retries, and recovery under partial failure.
+A checkout orchestration backend that coordinates inventory holds, payment authorization, and shipment reservation as a retry-safe saga. It stays correct under duplicate requests and partial failure using idempotency records, compensation, hold expiration, and outbox/inbox deduplication.
 
 ## Why It Exists
-E-commerce systems fail when inventory reservation, payment state, and order status diverge under retries, duplicate requests, and consumer lag. OrderFlowX focuses on idempotent APIs, state transitions, and event-driven recovery.
 
-## Core Concepts
-- idempotent checkout
-- inventory holds with expiration
-- outbox-style event publishing
-- inbox dedupe for event consumers
-- retry-safe saga orchestration
-- dead-letter and replay workflows
-- operational metrics and post-incident analysis
+E-commerce checkout fails when inventory, payment, and order state diverge under retries, duplicate delivery, and consumer lag. Two requests for one cart should never double-charge or double-reserve. OrderFlowX makes the checkout path idempotent and self-healing, and it ships a benchmark that measures those properties instead of asserting them.
 
-## Amazon-Style Hardening
-- explicit idempotency record with response snapshot
-- payment and shipment integrations with compensating release flow
-- hold expiration worker
-- repair request path for stuck orders
-- outbox plus consumer inbox dedupe
-- metrics for compensation, duplicate hits, and repair actions
+## Measured Results
 
-## Repo Layout
-- `src/domain/`: entities and state machines
-- `src/application/`: checkout workflow and reservation logic
-- `src/infrastructure/`: in-memory repositories and event bus
-- `src/api/`: handler-level API contract logic
-- `src/observability/`: metrics and structured logs
-- `docs/`: architecture, API contract, runbook, benchmark notes
+Reproducible via `npm run benchmark` (seeded, deterministic). Numbers are computed from the running service, not hardcoded.
 
-## Local Commands
+| Metric | Without idempotency | With idempotency |
+|---|---|---|
+| Duplicate checkout side-effect rate | 19.9% | 0.0% |
+| Oversell rate (scarce SKU) | 0.0% | 0.0% |
+| Failure recovery rate (compensation) | — | 100.0% |
+| Checkout latency p50 / p95 / p99 | — | 0.029 / 0.048 / 0.069 ms |
+
+Setup: 1,000 logical checkouts over an at-least-once channel (geometric redelivery, p=0.2, seed 1337) producing 1,249 deliveries; one-third of intents have payment failure injected to exercise compensation. Oversell is 0% in both modes because the inventory guard rejects over-reservation; the failure mode idempotency removes is duplicate orders and duplicate payment authorizations.
+
+## Quickstart
+
 ```bash
+# Run with Docker
+docker compose up --build        # serves on :3000
+
+# Or run locally
 npm install
 npm run build
-npm test
-npm run benchmark
+npm start                        # serves on :3000
+```
+
+```bash
+# Prove idempotency end-to-end
+bash scripts/demo.sh
+```
+
+## API
+
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/checkout` | Run the checkout saga. Same `idempotencyKey` returns the original order. |
+| `POST` | `/orders/:id/repair` | Request repair for a stuck order. |
+| `GET` | `/metrics` | Operational counters (compensation, idempotent hits, expired holds). |
+| `GET` | `/healthz` | Liveness. |
+
+```bash
+curl -X POST localhost:3000/checkout \
+  -d '{"customerId":"c1","idempotencyKey":"k1","items":[{"sku":"SKU-PHONE","quantity":1}]}'
+# Repeat the same call: same orderId, no second reservation or charge.
+```
+
+## How It Stays Correct
+
+- **Idempotency record with response snapshot** — a retried request returns the original order instead of re-running the saga.
+- **Saga with compensation** — if payment or shipment fails, holds are released and the order is failed cleanly, so inventory is never leaked.
+- **Hold expiration worker** — abandoned holds are released so stock is reclaimed.
+- **Outbox + consumer inbox dedupe** — events are published once and consumed at-most-once.
+- **State machine** — every order transition is validated, so illegal transitions cannot occur.
+
+## Repo Layout
+
+- `src/domain/` — entities, state machine, errors
+- `src/application/` — checkout saga, idempotency, integrations
+- `src/infrastructure/` — repositories and event store
+- `src/api/` — HTTP handlers and contract mapping
+- `src/index.ts` — HTTP server and composition root
+- `src/bench/` — the measuring benchmark harness
+- `docs/` — architecture, API contract, runbook, benchmark notes
+
+## Commands
+
+```bash
+npm test            # unit tests
+npm run benchmark   # build + run the measuring harness, writes benchmarks/results/
+npm start           # start the HTTP server
+bash scripts/demo.sh
 ```
 
 ## Resume Bullets
-- Built OrderFlowX, a distributed order reservation backend that coordinates inventory holds, payment authorization, and shipment reservation through idempotent APIs and retry-safe saga steps.
-- Implemented optimistic state transitions, outbox-style event publication, and replay-safe failure handling to prevent oversell and duplicate checkout effects under concurrent requests.
-- Benchmarked checkout latency, hold expiration behavior, and recovery outcomes to document correctness tradeoffs under partial failure and duplicate events.
+
+- Built a checkout orchestration backend (TypeScript) coordinating inventory holds, payment authorization, and shipment reservation as a retry-safe saga with compensation and hold expiration.
+- Drove the service to a **measured 19.9% -> 0% duplicate checkout side-effect rate and 100% failure recovery** across 1,000 retried requests using idempotency records, optimistic state transitions, outbox events, and inbox deduplication.
+- Shipped a seeded, reproducible benchmark and a Dockerized HTTP API so the correctness claims are independently verifiable.

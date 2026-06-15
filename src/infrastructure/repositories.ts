@@ -71,6 +71,14 @@ export class OrderRepository {
     return this.orders.get(orderId);
   }
 
+  list(): Order[] {
+    return [...this.orders.values()];
+  }
+
+  count(): number {
+    return this.orders.size;
+  }
+
   updateStatus(orderId: string, nextStatus: OrderStatus, attributes: Partial<Order>): Order {
     const current = this.orders.get(orderId);
     if (!current) {
