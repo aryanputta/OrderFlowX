@@ -1,0 +1,15 @@
+# Render blueprint. Deploy with zero local tooling:
+#   1. Push this repo to GitHub (done).
+#   2. In the Render dashboard: New -> Blueprint -> connect aryanputta/OrderFlowX.
+#   3. Render builds the Dockerfile and serves a public https URL.
+services:
+  - type: web
+    name: orderflowx
+    runtime: docker
+    plan: free
+    healthCheckPath: /healthz
+    envVars:
+      - key: PORT
+        value: "3000"
+      - key: NODE_ENV
+        value: production

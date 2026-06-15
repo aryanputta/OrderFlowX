@@ -1,0 +1,25 @@
+# Fly.io config. Deploy with:
+#   fly auth login
+#   fly launch --copy-config --now    (first time)
+#   fly deploy                        (subsequent)
+app = "orderflowx"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[http_service.http_checks]]
+  path = "/healthz"
+  interval = "30s"
+  timeout = "3s"
+
+[env]
+  PORT = "3000"
+  NODE_ENV = "production"
